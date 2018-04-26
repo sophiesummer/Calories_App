@@ -130,8 +130,5 @@ public class TakePhotoActivity extends AppCompatActivity {
                 break;
         }
     }
-
-
-
-
+    
 }
