@@ -13,11 +13,22 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.android.volley.RequestQueue;
+import com.android.volley.toolbox.Volley;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+
 public class TakePhotoActivity extends AppCompatActivity {
+
+    private static RequestQueue requestQueue;
 
     ImageView imageView;
 
@@ -25,8 +36,13 @@ public class TakePhotoActivity extends AppCompatActivity {
 
     private static int IMG_RESULT = 2;
 
+    private Bitmap currentBitMap;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        requestQueue = Volley.newRequestQueue(this);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_take_photo);
 
@@ -62,15 +78,15 @@ public class TakePhotoActivity extends AppCompatActivity {
             }
         });
 
-        // saving images to gallery
-        final ImageButton saving = findViewById(R.id.gallerySaving);
+        final Button test = findViewById(R.id.test);
 
-        saving.setOnClickListener(new View.OnClickListener() {
+        test.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent();
+                startAPICall();
             }
         });
+
 
     }
 
@@ -80,6 +96,7 @@ public class TakePhotoActivity extends AppCompatActivity {
         if (requestCode == 7 && resultCode == RESULT_OK) {
 
             Bitmap bitmap = (Bitmap) data.getExtras().get("data");
+            currentBitMap = bitmap;
             imageView.setImageBitmap(bitmap);
         }
 
@@ -95,7 +112,8 @@ public class TakePhotoActivity extends AppCompatActivity {
                 String ImageDecode = cursor.getString(columnIndex);
                 cursor.close();
 
-                imageView.setImageBitmap(BitmapFactory.decodeFile(ImageDecode));
+                currentBitMap = BitmapFactory.decodeFile(ImageDecode);
+                imageView.setImageBitmap(currentBitMap);
             }
         } catch (Exception e) {
             Toast.makeText(this, "Please try again", Toast.LENGTH_LONG)
@@ -130,5 +148,28 @@ public class TakePhotoActivity extends AppCompatActivity {
                 break;
         }
     }
-    
+
+
+    /**
+     * processing the image.
+     * firstly use recognize photo api, then use nutrition calculate api
+     */
+    private void startAPICall() {
+        if (currentBitMap == null) {
+            TextView textView = findViewById(R.id.showCal);
+            textView.setText("Please take a photo / select a photo");
+            return;
+        }
+        new ProcessPhoto.ProcessImageTask(TakePhotoActivity.this, requestQueue).execute(currentBitMap);
+    }
+
+    protected void finishProcessImage(final String jsonResult) {
+        TextView textView = findViewById(R.id.showCal);
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        JsonParser jsonParser = new JsonParser();
+        JsonElement jsonElement = jsonParser.parse(jsonResult);
+        String jsonString = gson.toJson(jsonElement);
+        textView.setText(jsonString);
+    }
+
 }
