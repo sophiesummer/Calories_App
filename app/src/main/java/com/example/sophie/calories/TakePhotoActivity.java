@@ -23,10 +23,23 @@ import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
+
+import cz.msebera.android.httpclient.entity.StringEntity;
+import com.loopj.android.http.*;
+
 public class TakePhotoActivity extends AppCompatActivity {
+
+    private final String TAG = "Calorie";
 
     private static RequestQueue requestQueue;
 
@@ -164,12 +177,93 @@ public class TakePhotoActivity extends AppCompatActivity {
     }
 
     protected void finishProcessImage(final String jsonResult) {
-        TextView textView = findViewById(R.id.showCal);
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
         JsonParser jsonParser = new JsonParser();
-        JsonElement jsonElement = jsonParser.parse(jsonResult);
-        String jsonString = gson.toJson(jsonElement);
-        textView.setText(jsonString);
+        JsonObject result = jsonParser.parse(jsonResult).getAsJsonObject();
+        JsonObject description = result.get("description").getAsJsonObject();
+        JsonArray array = description.get("tags").getAsJsonArray();
+        String components = array.toString();
+
+        String newComp = components.replaceAll(","," and ");
+        Log.d(TAG,"PROCCESSED IMAGE");
+        connectNutrionix(newComp);
     }
+
+
+
+    // call Nutritionix API
+    private void connectNutrionix(String foodName) {
+        StringEntity stringEntity = null;
+        AsyncHttpClient client = new AsyncHttpClient();
+        client.addHeader("x-app-id", "6c47ef6f");
+        client.addHeader("x-app-key", "60177784d08e12841eaed10cb6bd0d06");
+        client.addHeader("x-remote-user-id", "0");
+        JSONObject jsonObject = new JSONObject();
+
+
+        try {
+            jsonObject.put("query", foodName);
+
+        } catch (JSONException e) {
+            Log.d("Healthier", e.toString());
+        }
+        try {
+            stringEntity = new StringEntity(jsonObject.toString());
+        } catch (UnsupportedEncodingException e) {
+            Log.d("Healthier", e.toString());
+        }
+
+        client.post(this, "https://trackapi.nutritionix.com/v2/natural/nutrients", stringEntity, "application/json",
+                new JsonHttpResponseHandler() {
+                    @Override
+                    public void onSuccess(int statusCode, cz.msebera.android.httpclient.Header[] headers, JSONObject response) {
+                        Log.d("Healthier", "Success" + response.toString());
+                        finishCalculate(response);
+                        //data = NutritionData.fromJson(response);
+                    }
+
+                    @Override
+                    public void onFailure(int statusCode, cz.msebera.android.httpclient.Header[] headers, Throwable throwable, JSONObject errorResponse) {
+                        Log.d("Healthier", "failed" + errorResponse.toString());
+                        Toast.makeText(TakePhotoActivity.this, "Sorry, We couldn't match any of your foods",
+                                Toast.LENGTH_SHORT).show();
+
+
+                    }
+                });
+    }
+
+    protected void finishCalculate(final JSONObject jsonResult) {
+        StringBuilder foodName = new StringBuilder();
+        StringBuilder foodCal = new StringBuilder();
+        Integer totalCal = 0;
+
+        try {
+            JSONArray foods = jsonResult.getJSONArray("foods");
+            int i = 0;
+            while (!foods.isNull(i)) {
+                Log.d(TAG,foods.getJSONObject(i).toString());
+
+                JSONObject eachFood = foods.getJSONObject(i);
+                foodName.append(eachFood.getString("food_name") + "\n");
+                foodCal.append(eachFood.getString("nf_calories")+ " Cal"+ '\n');
+                totalCal += eachFood.getInt("nf_calories");
+                i++;
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        TextView calSum = findViewById(R.id.totalCal);
+        calSum.setText(totalCal.toString());
+
+        TextView listComponent = findViewById(R.id.showComponent);
+        listComponent.setText(foodName.toString());
+
+        TextView listCal = findViewById(R.id.showCal);
+        listCal.setText(foodCal.toString());
+    }
+
+
+
 
 }
